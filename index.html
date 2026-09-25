@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outline Challenge</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+</head>
+<body>
+
+  <div id="game-container">
+    <header>
+      <h1>Outline Challenge</h1>
+      <span id="phase-badge">Phase 1: Guess Country</span>
+    </header>
+
+    <div id="map-container">
+      <svg id="map-svg"></svg>
+    </div>
+
+    <!-- PHASE 1: GUESS COUNTRY -->
+    <div id="phase1-controls" class="phase-section">
+      <p class="instruction">Identify the mystery country from its silhouette. Remaining Tries: <strong id="p1-tries">6</strong></p>
+      <div class="input-group">
+        <input type="text" id="p1-input" list="country-list" placeholder="Enter country name..." autocomplete="off">
+        <button id="p1-submit-btn">Guess</button>
+      </div>
+      <div id="p1-history" class="history-list"></div>
+    </div>
+
+    <!-- PHASE 2: GUESS NEIGHBORS -->
+    <div id="phase2-controls" class="phase-section hidden">
+      <p class="instruction">Guess all land-bordering neighbors. Progress: <strong id="p2-progress">0 / 0</strong></p>
+      <div class="input-group">
+        <input type="text" id="p2-input" list="country-list" placeholder="Enter neighbor country..." autocomplete="off">
+        <button id="p2-submit-btn">Guess</button>
+      </div>
+      <ul id="p2-found-list" class="tags-list"></ul>
+    </div>
+
+    <!-- PHASE 3: GUESS CAPITAL -->
+    <div id="phase3-controls" class="phase-section hidden">
+      <p class="instruction">Name the capital city of <strong id="p3-country-name">---</strong>. Remaining Tries: <strong id="p3-tries">3</strong></p>
+      <div class="input-group">
+        <input type="text" id="p3-input" list="capital-list" placeholder="Enter capital city..." autocomplete="off">
+        <button id="p3-submit-btn">Guess</button>
+      </div>
+    </div>
+
+    <!-- PHASE 4: SELECT FLAG -->
+    <div id="phase4-controls" class="phase-section hidden">
+      <p class="instruction">Select the flag of <strong id="p4-country-name">---</strong> (or one of its neighbors). Remaining Tries: <strong id="p4-tries">2</strong></p>
+      <div id="flag-grid" class="flag-grid"></div>
+    </div>
+
+    <!-- GAME OVER / VICTORY SCREEN -->
+    <div id="game-over-screen" class="phase-section hidden">
+      <h2 id="game-over-title">Game Over</h2>
+      <p id="game-over-msg" class="instruction"></p>
+      <button id="restart-btn">Play Again</button>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-message"></div>
+  </div>
+
+  <datalist id="country-list"></datalist>
+  <datalist id="capital-list"></datalist>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
