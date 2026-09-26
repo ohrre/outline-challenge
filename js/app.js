@@ -81,10 +81,16 @@ function focusInput(id) {
 function getAliases(country) {
   const aliases = new Set();
   
-  if (country.name?.common) aliases.add(country.name.common.toLowerCase());
-  if (country.name?.official) aliases.add(country.name.official.toLowerCase());
+  if (country.name?.common) {
+    aliases.add(country.name.common.toLowerCase());
+  }
+  
+  if (country.name?.official) {
+    aliases.add(country.name.official.toLowerCase());
+  }
   
   const cca3 = country.cca3;
+  if (cca3 === "TUR") ["turkey", "türkiye"].forEach(a => aliases.add(a));
   if (cca3 === "USA") ["usa", "us", "america", "united states", "united states of america"].forEach(a => aliases.add(a));
   if (cca3 === "ARE") ["uae", "united arab emirates"].forEach(a => aliases.add(a));
   if (cca3 === "GBR") ["uk", "great britain", "britain", "united kingdom"].forEach(a => aliases.add(a));
@@ -176,9 +182,20 @@ Promise.all([
   showToast("Error loading database or map assets.", "error", 0);
 });
 
+// Accent-normalized country input lookup
 function findCountryInput(val) {
+  if (!val) return null;
   const cleanVal = val.trim().toLowerCase();
-  return COUNTRIES_DB.find(c => c.aliases.includes(cleanVal));
+  
+  let match = COUNTRIES_DB.find(c => c.aliases.includes(cleanVal));
+  if (match) return match;
+
+  const normalizeStr = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalizedClean = normalizeStr(cleanVal);
+
+  return COUNTRIES_DB.find(c => 
+    c.aliases.some(alias => normalizeStr(alias) === normalizedClean)
+  );
 }
 
 function bindEnterKeys() {
@@ -207,34 +224,43 @@ function renderTargetCountry(geoJson, targetIso) {
   const svg = d3.select("#map-svg");
   svg.selectAll("*").remove();
 
-  const feature = geoJson.features.find(f => formatIso(f.id) === targetIso);
-  if (!feature) return;
-
-  const container = document.getElementById("map-container");
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 330;
-
-  // 1. Create projection with enhanced precision
-  const projection = d3.geoMercator().precision(0.1);
-
-  // 2. Adjust projection rotation if country crosses the +180/-180 antimeridian
-  const bounds = d3.geoBounds(feature);
-  const lonDiff = Math.abs(bounds[1][0] - bounds[0][0]);
-  if (lonDiff > 180) {
-    const centroid = d3.geoCentroid(feature);
-    projection.rotate([-centroid[0], 0]);
+  if (!geoJson || !geoJson.features) {
+    console.error("GeoJSON not loaded yet!");
+    return;
   }
 
-  // 3. Fit target neatly inside box with safe padding
-  projection.fitExtent([[40, 40], [width - 40, height - 40]], feature);
+  const targetFeature = geoJson.features.find(f => formatIso(f.id) === targetIso);
+  if (!targetFeature) {
+    console.warn(`Target feature for ISO ${targetIso} not found in map data.`);
+    return;
+  }
+
+  const container = document.getElementById("map-container");
+  const width = (container && container.clientWidth) ? container.clientWidth : 600;
+  const height = (container && container.clientHeight) ? container.clientHeight : 350;
+
+  const centroid = d3.geoCentroid(targetFeature);
+  const projection = d3.geoMercator()
+    .center(centroid)
+    .translate([width / 2, height / 2]);
+
+  projection.fitExtent([[40, 40], [width - 40, height - 40]], targetFeature);
+  if (!isNaN(projection.scale()) && projection.scale() > 0) {
+    projection.scale(projection.scale() * 0.65);
+  }
 
   const path = d3.geoPath().projection(projection);
-
   const g = svg.append("g");
 
-  g.append("path")
-    .datum(feature)
-    .attr("class", "country-target")
+  g.selectAll("path.world-bg")
+    .data(geoJson.features)
+    .enter()
+    .append("path")
+    .attr("class", f => {
+      const iso = formatIso(f.id);
+      if (iso === targetIso) return "country-target";
+      return "country-base";
+    })
     .attr("d", path);
 }
 
@@ -242,25 +268,23 @@ function renderCountryAndNeighborsMap(geoJson, targetIso, neighborIsos) {
   const svg = d3.select("#map-svg");
   svg.selectAll("*").remove();
 
+  if (!geoJson || !geoJson.features) return;
+
   const allRelevantIsos = [targetIso, ...neighborIsos];
   const relevantFeatures = geoJson.features.filter(f => allRelevantIsos.includes(formatIso(f.id)));
 
   if (relevantFeatures.length === 0) return;
 
   const container = document.getElementById("map-container");
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 330;
+  const width = (container && container.clientWidth) ? container.clientWidth : 600;
+  const height = (container && container.clientHeight) ? container.clientHeight : 350;
 
   const featureCollection = { type: "FeatureCollection", features: relevantFeatures };
-  
-  const projection = d3.geoMercator().precision(0.1);
+  const centroid = d3.geoCentroid(featureCollection);
 
-  const bounds = d3.geoBounds(featureCollection);
-  const lonDiff = Math.abs(bounds[1][0] - bounds[0][0]);
-  if (lonDiff > 180) {
-    const centroid = d3.geoCentroid(featureCollection);
-    projection.rotate([-centroid[0], 0]);
-  }
+  const projection = d3.geoMercator()
+    .center(centroid)
+    .translate([width / 2, height / 2]);
 
   projection.fitExtent([[40, 40], [width - 40, height - 40]], featureCollection);
   const path = d3.geoPath().projection(projection);
@@ -278,6 +302,14 @@ function renderCountryAndNeighborsMap(geoJson, targetIso, neighborIsos) {
       return "country-base";
     })
     .attr("d", path);
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.5, 8])
+    .on("zoom", (event) => {
+      g.attr("transform", event.transform);
+    });
+
+  svg.call(zoom);
 }
 
 function revealNeighborOnMap(neighborIso) {
